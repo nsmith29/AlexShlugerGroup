@@ -307,55 +307,53 @@ for X in 'perfect','{...}': # list all defects in material being studied. If def
             exec(f'{system}_{state}_LUMO_{s} = {system}_{state}_unoccupied_{s}[0]')
             exec(f'{system}_{state}_LUMO_{s} = round({system}_{state}_LUMO_{s},2)') ## first unoccupied eigenvalue is eigenvalue of LUMO
             
-        """IMPORTANT!! On first run of script/jupyter notebook cells comment out all lines which have the comment #!*! at then end of them to generate the -L.xyz files of your calculations. The script/jupyter
-        notebook cells then should be rerun again with those lines which have the comment #!*! uncommented and line which comment #¡***¡ commented out. This is so the full -L.xyz files of your calculations 
-        can be unpacked to {system}_{state}_x, {system}_{state}_y, {system}_{state}_z"""
         itr_start = []
         L_itr_lines = []
         if X == 'perfect':
-            xyz_file = str("{}{}{}-pos-1.xyz".format(output_file_hierarchy_directory,file,perfect_project_name)) #¡***¡
+            xyz_file = str("{}{}{}-pos-1.xyz".format(output_file_hierarchy_directory,file,perfect_project_name)) 
             new_xyz_file = str("{}{}{}-pos-L.xyz".format(output_file_hierarchy_directory,file,perfect_project_name))
         else:
-            xyz_file = str("{}{}{}{}-pos-1.xyz".format(output_file_hierarchy_directory,file,defect_project_name_stem,X)) #¡***¡
+            xyz_file = str("{}{}{}{}-pos-1.xyz".format(output_file_hierarchy_directory,file,defect_project_name_stem,X)) 
             new_xyz_file = str("{}{}{}{}-pos-L.xyz".format(output_file_hierarchy_directory,file,defect_project_name_stem,X))
             
-        file = open(xyz_file, 'r') #¡***¡
-        index = 0 #¡***¡
-        for line in file: #¡***¡
-            index += 1 #¡***¡
-            if tot_atoms in line: #¡***¡
-                j = index #¡***¡
-                itr_start.append(j) #¡***¡ ## create array with line number of the each interation's starting line
-        l = (itr_start[-1] - 1) #¡***¡ ## record line number of the last interation's starting line
-        # print(X,state,total_atoms_in_calc[-1]) #¡***¡
-        for n in total_atoms_in_calc: #¡***¡
-            Lns = l + n #¡***¡
-            L_itr_lines.append(Lns) #¡***¡     
-        file.close #¡***¡
-        file = open(xyz_file, 'r') #¡***¡
-        output_file = open(new_xyz_file, 'w') #¡***¡
-        for position, line in enumerate(file): #¡***¡ ## enumerate used to search file and return the text string found on line numbers specified by position
-            if position in L_itr_lines: #¡***¡
-                string = line #¡***¡
-                output_file.write(string) #¡***¡ ## text string found on file's specified line numbers wrote to output_file
+        file = open(xyz_file, 'r') 
+        index = 0 
+        for line in file: 
+            index += 1 
+            if tot_atoms in line: 
+                j = index
+                itr_start.append(j) ## create array with line number of the each interation's starting line
+        l = (itr_start[-1] - 1) ## record line number of the last interation's starting line
+        for n in total_atoms_in_calc: 
+            Lns = l + n 
+            L_itr_lines.append(Lns)      
+        file.close() 
+        file = open(xyz_file, 'r') 
+        output_file = open(new_xyz_file, 'w') 
+        for position, line in enumerate(file):  ## enumerate used to search file and return the text string found on line numbers specified by position
+            if position in L_itr_lines:
+                string = line 
+                output_file.write(string) ## text string found on file's specified line numbers wrote to output_file
+        output_file.close()
+        file.close()
 
-        exec(f'{system}_{state}_x, {system}_{state}_y, {system}_{state}_z = np.loadtxt(new_xyz_file, skiprows=2, usecols=(1,2,3), unpack=True)') #!*!
+        exec(f'{system}_{state}_x, {system}_{state}_y, {system}_{state}_z = np.loadtxt(new_xyz_file, skiprows=2, usecols=(1,2,3), unpack=True)') 
 
-for X in '{...}': #!*! # list all defects in material being studied. If defects are related to addition of impurity atoms, list the symbols of impurities used in the different calculations rather than defect name
-    system = str(X) #!*!
-    for state in '{...}': #!*! # charge state of defects; for only one charge state comment out line and write replacement line state = {...} below. Remember to move code lines included within for state in {...} 
+for X in '{...}': # list all defects in material being studied. If defects are related to addition of impurity atoms, list the symbols of impurities used in the different calculations rather than defect name
+    system = str(X) 
+    for state in '{...}':  # charge state of defects; for only one charge state comment out line and write replacement line state = {...} below. Remember to move code lines included within for state in {...} 
                         # back an indent which can be done by highlighting code and pressing shift tab. 
-        # exec(f'{system}_{state}_defect_site_x = {...}') #!*! # if defect is vacancy, write x-coordinate of removed atom
-        # exec(f'{system}_{state}_defect_site_y = {...}') #!*! # if defect is vacancy, write y-coordinate of removed atom
-        # exec(f'{system}_{state}_defect_site_z = {...}') #!*! # if defect is vacancy, write z-coordinate of removed atom 
+        # exec(f'{system}_{state}_defect_site_x = {...}') # if defect is vacancy, write x-coordinate of removed atom
+        # exec(f'{system}_{state}_defect_site_y = {...}') # if defect is vacancy, write y-coordinate of removed atom
+        # exec(f'{system}_{state}_defect_site_z = {...}') # if defect is vacancy, write z-coordinate of removed atom 
         for d in 'x', 'y', 'z': #!*!
-            exec(f'{system}_{state}_diff_{d} = perf_{perfect_project_name}_{...}_{d} - {system}_{state}_{d}') #!*! # if state changed for perfect structure above to stop any iteration errors write what state was changed to in {...}
-            exec(f'{system}_{state}_defect_site_{d} = {system}_{state}_{d}[{...}]') #!*! # if defect is a substitional or interstitial defect, write atom index of subsituted/inserted atom. If defect is a vacancy comment 
+            exec(f'{system}_{state}_diff_{d} = perf_{perfect_project_name}_{...}_{d} - {system}_{state}_{d}') # if state changed for perfect structure above to stop any iteration errors write what state was changed to in {...}
+            exec(f'{system}_{state}_defect_site_{d} = {system}_{state}_{d}[{...}]') # if defect is a substitional or interstitial defect, write atom index of subsituted/inserted atom. If defect is a vacancy comment 
                                                                                     # out line and uncomment out the three lines prior to the for loop of d.
-            exec(f'{system}_{state}_distance_{d} = {system}_{state}_defect_site_{d} - {system}_{state}_{d}') #!*!
-        exec(f'{system}_{state}_tot_displacement = np.sqrt({system}_{state}_diff_x**2 + {system}_{state}_diff_y**2 + {system}_{state}_diff_z**2)') #!*! ## vector magnitude of displacement from perfect structure geometry
-        exec(f'{system}_{state}_tot_distance = np.sqrt({system}_{state}_distance_x**2 + {system}_{state}_distance_y**2 + {system}_{state}_distance_z**2)') #!*! ## vector magnitude of distance from defect site
+            exec(f'{system}_{state}_distance_{d} = {system}_{state}_defect_site_{d} - {system}_{state}_{d}')
+        exec(f'{system}_{state}_tot_displacement = np.sqrt({system}_{state}_diff_x**2 + {system}_{state}_diff_y**2 + {system}_{state}_diff_z**2)') ## vector magnitude of displacement from perfect structure geometry
+        exec(f'{system}_{state}_tot_distance = np.sqrt({system}_{state}_distance_x**2 + {system}_{state}_distance_y**2 + {system}_{state}_distance_z**2)') ## vector magnitude of distance from defect site
         exec(f'{system}_{state}_tot_distance_sorted = np.sort({system}_{state}_tot_distance)') #!*! ## distances from defect site sorted from smallest to largest 
-        exec(f'{system}_{state}_tot_displacement_sorted = [x for _, x in sorted(zip({system}_{state}_tot_distance,{system}_{state}_tot_displacement))]') #!*! ## displacements from perfect structure geometry sorted based  
+        exec(f'{system}_{state}_tot_displacement_sorted = [x for _, x in sorted(zip({system}_{state}_tot_distance,{system}_{state}_tot_displacement))]') ## displacements from perfect structure geometry sorted based  
                                                                                                                                                          ## on distance from defect site from smallest to largest
-        exec(f'{system}_{state}_tot_displacement_sorted2 = np.sort({system}_{state}_tot_displacement)') #!*! ## displacements from perfect structure geometry sorted from smallest to largest
+        exec(f'{system}_{state}_tot_displacement_sorted2 = np.sort({system}_{state}_tot_displacement)') ## displacements from perfect structure geometry sorted from smallest to largest
