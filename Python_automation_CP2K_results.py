@@ -80,48 +80,28 @@ class pdos: ## projected electronic density of states from CP2K output files
         return d
         
 # ====================================================================================
-total_atoms_in_system = {...} # number of atoms in material included within calculations
-
-tot_atoms = str("     {}".format(total_atoms_in_system))
-total_atoms_plus_2 = total_atoms_in_system + 2
-total_atoms_in_calc = []
-number_of_total_atoms_array = np.linspace(1, total_atoms_plus_2, total_atoms_plus_2) - 1
-for t in number_of_total_atoms_array:
-    t = round(t)
-    total_atoms_in_calc.append(t)
-
-gap = 'HOMO - LUMO gap'
-energy = 'ENERGY| Total FORCE_EVAL'
-pop1 = 'Mulliken Population Analysis'      
-pop2 = 'Hirshfeld Charges'
-# ====================================================================================
-
-number_of_kinds_in_perfect = {...} # number of different atomic kinds included within perfect calculation
-kinds_in_perfect = np.linspace(1, number_of_kinds_in_perfect, number_of_kinds_in_perfect) - 1
-kinds_in_perfect = np.around(kinds_in_perfect, decimals= 1)
-perfect_included_atoms = '{...}' # symbol of elements included in perfect calculation listed in same order as their kind sections in input file 
-
-number_of_kinds_in_defect = {...} # number of different atomic kinds included within each defect calculation 
-kinds_in_defect = np.linspace(1, number_of_kinds_in_defect, number_of_kinds_in_defect) - 1
-kinds_in_defect = np.around(kinds_in_defect,0)
-defect_included_atoms = '{...}' # symbol of elements included in defect calculations listed in same order as their kind sections in input file; if different defects are related to addition of
-                              # different impurities comment out line and uncomment first lines after "else" of "if X == perfect" statement.
-
-# ====================================================================================
+perfect_inputfile_name = str("{...}") # name of .inp file set within ARCHER2 submission script of no defect calculation, do not include '.inp' extension in variable
 perfect_project_name = str("{...}") # PROJECT_NAME set within no defect pefect material calculation cp2k input file 
 perfect_logfile_name = str("{...}") # name of .log file set within ARCHER2 submission script of no defect calculation, do not include '.log' extension in variable
 
+defect_inputfile_name = str("{...}") # name of .inp file set within ARCHER2 submission script of defect calculation, do not include '.inp' extension in variable
 defect_project_name_stem = str("{...}") # PROJECT_NAME stem set within defect calculation cp2k input files
 defect_logfile_name_stem = str("{...}") # name of .log file set within ARCHER2 submission scripts of defect calculations, do not include '.log' extension in variable
 
 output_file_hierarchy_directory = str("{...}") # path to directory where output files of all calculations are store in subdirectories on local machine/server. str needs to end with /
+    
+# ====================================================================================
+kind = '     &KIND'
+gap = 'HOMO - LUMO gap'
+energy = 'ENERGY| Total FORCE_EVAL'
+pop1 = 'Mulliken Population Analysis'      
+pop2 = 'Hirshfeld Charges'
 
 # ====================================================================================
 for X in 'perfect','{...}': # list all defects in material being studied. If defects are related to addition of impurity atoms, list the symbols of impurities used in the different calculations rather than defect name
     if X == 'perfect':
         system = str("perf_" + perfect_project_name)
     else:
-        # defect_included_atoms = ['{...}',X] # comment out line if not dealing with impurity related defects. 
         system = str(X)
         
     for state in '{...}':# charge state of defects; for only one charge state comment out line and write replacement line state = {...} below. Remember to move code lines included within for state in {...} 
@@ -129,25 +109,67 @@ for X in 'perfect','{...}': # list all defects in material being studied. If def
         if X == 'perfect':
             state = '{...}' # state may need to be reset for perfect structure to stop any iteration errors from occuring for charge states incompatible with perfect structure 
             file = str("{...}") # remaining path to subdirectory containing only perfect calculation results. Should continue on hierachy directory path saved in output_file_hierarchy_directory. Str needs to end with /
+            
+            inpkindline = []
+            perfect_included_atoms = []
+            
+            inputname = str("{}.inp".format(perfect_inputfile_name))
+            inputfile = str("{}{}{}".format(output_file_hierarchy_directory,file,inputname))
+            inp = open(inputfile,'r')
+            index = 0
+            for line in inp:
+                index += 1
+                if kind in line:
+                    kindLn = index - 1
+                    inpkindline.append(kindLn) 
+            inp.close()
+            kinds_in_perfect = len(inpkindline) ## len() returns the number elements in a list/array - equal to number of kinds in structure
+            
+            inp = open(inputfile, 'r')
+            for position, line in enumerate(inp):
+                if position in inpkindline:
+                    strg = line.split()
+                    atom = strg[-1] 
+                    perfect_included_atoms.append(atom)
+                   
             logname = str("{}.log".format(perfect_logfile_name))
-            for k in kinds_in_perfect:
-                kr = round(k)
-                K = kr + 1
+            for k in range(0,int(kinds_in_perfect)):
+                K = k + 1
                 pdosname_alpha = str("{}-ALPHA_k{}-1.pdos".format(perfect_project_name,K))
-                exec(f'pdosname_alpha{kr} = pdosname_alpha')
+                exec(f'pdosname_alpha{k} = pdosname_alpha')
                 pdosname_beta = str("{}-BETA_k{}-1.pdos".format(perfect_project_name,K))
-                exec(f'pdosname_beta{kr} = pdosname_beta')
+                exec(f'pdosname_beta{k} = pdosname_beta')
         else:
             file = str("{...}") # remaining path to subdirectory comtaining calculation results for a given defect in X [other than perfect]. This section of path needs to be iteratible with X and state. Str needs to end with /
             logname = str("{}_{}.log".format(X,defect_logfile_name_stem)) ## if logfile names for each individual defect calculation is the same, change to logname = str('{}.log'.format(defect_logfile_name_stem)), line at current assumes different 
                                                                           ## logfile name prefix for each individual defect with defect_logfile_name_stem being the suffix
-            for k in kinds_in_defect:
-                kr = round(k)
-                K = kr + 1
+            inpkindline = []
+            defect_included_atoms = []
+            
+            inputname = str("{}.inp".format(defect_inputfile_name))
+            inputfile = str("{}{}{}".format(output_file_hierarchy_directory,file,inputname))
+            inp = open(inputfile,'r')
+            index = 0
+            for line in inp:
+                index += 1
+                if kind in line:
+                    kindLn = index - 1
+                    inpkindline.append(kindLn)
+            inp.close()
+            kinds_in_defect = len(inpkindline) ## len() returns the number elements in a list/array - equal to number of kinds in structure
+            inp = open(inputfile, 'r')
+            for position, line in enumerate(inp):
+                if position in inpkindline:
+                    strg = line.split()
+                    atom = strg[-1]
+                    defect_included_atoms.append(atom)
+        
+            for k in range(0, int(kinds_in_defect)):
+                K = k + 1
                 pdosname_alpha = str("{}{}-ALPHA_k{}-1.pdos".format(defect_project_name_stem,X,K))
-                exec(f'pdosname_alpha{kr} = pdosname_alpha')
+                exec(f'pdosname_alpha{k} = pdosname_alpha')
                 pdosname_beta = str("{}{}-BETA_k{}-1.pdos".format(defect_project_name_stem,X,K))
-                exec(f'pdosname_beta{kr} = pdosname_beta')
+                exec(f'pdosname_beta{k} = pdosname_beta')
         exec(f'{system}_{state}_energy_line = []')
         exec(f'{system}_{state}_gap_line = []')
         exec(f'{system}_{state}_gap= []')
@@ -240,16 +262,15 @@ for X in 'perfect','{...}': # list all defects in material being studied. If def
         
         for s in 'alpha', 'beta': ## for spin polarised calculations where beta and alpha spin are treated seperately
             if X == 'perfect':
-                for k in kinds_in_perfect:
-                    kr = round(k)
-                    pdosname = eval("pdosname_{}{}".format(s,kr))
+                for k in range(0,int(kinds_in_perfect)):
+                    pdosname = eval("pdosname_{}{}".format(s,k))
                     infilename = str("{}{}{}".format(output_file_hierarchy_directory,file,pdosname)) 
                     Pdos = pdos(infilename)
                     npts = len(Pdos.e)
                     pdos_smeared = Pdos.smearing(npts,0.1) 
                     eigenvalues = np.linspace(min(Pdos.e), max(Pdos.e),npts)
                     ## above lines in for loop of k taken from get_smearing_pdos.py
-                    kind = perfect_included_atoms[kr] ## corresponding symbol of element in perfect represented by k
+                    kind = perfect_included_atoms[k] ## corresponding symbol of element in perfect represented by k
                     pdos_dat_file = str("{}{}{}_{}.dat".format(output_file_hierarchy_directory,file,kind,s)) ## name and file path of .dat file being wrote
                     g = open(pdos_dat_file,'w')
                     for i,j in zip(eigenvalues, pdos_smeared):
@@ -260,15 +281,14 @@ for X in 'perfect','{...}': # list all defects in material being studied. If def
                     if s == 'beta':
                         exec(f'{system}_{state}_{kind}_{s}_density = - {system}_{state}_{kind}_{s}_density')
             else:
-                for k in kinds_in_defect:
-                    kr = round(k)
-                    pdosname = eval("pdosname_{}{}".format(s,kr))
+                for k in range(0, int(kinds_in_defect)):
+                    pdosname = eval("pdosname_{}{}".format(s,k))
                     infilename = str("{}{}{}".format(output_file_hierarchy_directory,file,pdosname)) 
                     Pdos = pdos(infilename)
                     npts = len(Pdos.e)
                     pdos_smeared = Pdos.smearing(npts,0.1) 
                     eigenvalues = np.linspace(min(Pdos.e), max(Pdos.e),npts)
-                    kind = defect_included_atoms[kr]
+                    kind = defect_included_atoms[k]
                     
                     pdos_dat_file = str("{}{}{}_{}.dat".format(output_file_hierarchy_directory,file,kind,s))
                     g = open(pdos_dat_file, 'w')
@@ -312,19 +332,28 @@ for X in 'perfect','{...}': # list all defects in material being studied. If def
         if X == 'perfect':
             xyz_file = str("{}{}{}-pos-1.xyz".format(output_file_hierarchy_directory,file,perfect_project_name)) 
             new_xyz_file = str("{}{}{}-pos-L.xyz".format(output_file_hierarchy_directory,file,perfect_project_name))
+            with open(xyz_file) as f:
+                firstline = f.readline().rstrip()
+                tot_atoms = firstline.split()
         else:
             xyz_file = str("{}{}{}{}-pos-1.xyz".format(output_file_hierarchy_directory,file,defect_project_name_stem,X)) 
             new_xyz_file = str("{}{}{}{}-pos-L.xyz".format(output_file_hierarchy_directory,file,defect_project_name_stem,X))
-            
+            with open(xyz_file) as f:
+                firstline = f.readline().rstrip()
+                tot_atoms = firstline.split()
+        ## total number of atoms worked out directly from .xyz files
+        
+        total_atoms_in_calc = float(tot_atoms[0]) + 2
+        
         file = open(xyz_file, 'r') 
         index = 0 
         for line in file: 
             index += 1 
-            if tot_atoms in line: 
+            if firstline in line: 
                 j = index
                 itr_start.append(j) ## create array with line number of the each interation's starting line
         l = (itr_start[-1] - 1) ## record line number of the last interation's starting line
-        for n in total_atoms_in_calc: 
+        for n in range(0,int(total_atoms_in_calc)): 
             Lns = l + n 
             L_itr_lines.append(Lns)      
         file.close() 
