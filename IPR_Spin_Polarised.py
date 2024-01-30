@@ -17,10 +17,12 @@
 #         smearedBeta_kn-X.dat: smeared beta DOS of atomic kind X from BETA_kn-1.pdos file 
 #         MO_Alpha_projection.dat: atom projection for each alpha MO with an IPR value above 0.01
 #         MO_Beta_projection.dat: atom projection for each beta MO with an IPR value above 0.01
-#         ipr_pdos.png: figure of system's ipr and pdos data.
+#         ipr_pdos.png: figure of system's ipr and pdos data, with title which gives the average 
+#                       ipr values of the VB and CB, the ipr value of the defect state, and the
+#                       defect state's Fermi level above the single electron KS HOMO energy.
 #---------------------------------------------------
 # Author: Niamh Smith [orignal: Jack Strand] e-mail: niamh.smith.17 [at] ucl.ac.uk
-# Date:   22-09-2023
+# Date:   22-09-2023; 30-01-2024 [updated]
 #---------------------------------------------------
 import numpy as np
 import matplotlib.pyplot as plt
@@ -40,7 +42,7 @@ class IPR_Spin_Polarised:
         self.IPR_Beta=self.Read_data('Beta')
         
         ### Alpha Calculations
-        # self.IPR_Alpha=self.Read_data('Alpha')
+        self.IPR_Alpha=self.Read_data('Alpha')
         
     ############################# finding name of project from inputted log file
     def find_project_name(self):
@@ -177,6 +179,22 @@ class IPR_Spin_Polarised:
             
         output_file.close()
         
+    ########################### defining average ipr value of the VB and CB
+    def bandIPR_ave(self, homo_MO, lumo_MO, IPR):
+        # VB_ave, CB_ave = None, None
+        for band, start, finish in zip(['VB','CB'],[1,int(lumo_MO)],[int(homo_MO),int(len(IPR))]):
+            adding = 0
+            counter = 0
+            for n in range(start,finish):
+                counter += 1
+                adding = adding + IPR[n]
+            _ave = round(adding / counter,6)
+            if band == 'VB':
+                VB_ave = _ave
+            else:
+                CB_ave = _ave
+        return VB_ave, CB_ave
+        
     ############################# processing pdos files to get pdos.dat files, adjusting IPR eigenvalue for fermi level, finding localised MOs in IPR analysis. 
     def pdos_ipr_processing(self, cwd):
         for S, s in zip(['ALPHA','BETA'],['Alpha','Beta']):
@@ -184,16 +202,14 @@ class IPR_Spin_Polarised:
             # unpacking data from IPR output files 
             IPR_file = str("IPR_output-{}.dat".format(s))
             exec(f'eigenvalue0_{S}, IPR_{s} = np.loadtxt(IPR_file, unpack=True)')
-            
+
             if S == 'ALPHA':
                 IPR_ALPHA = eval("IPR_{}".format(s))
-                Alpha_dats = []
-                MOs_Alpha = []
+                Alpha_dats, MOs_Alpha, is_Alpha_occ, is_Alpha_unocc = [], [], [], []
                 
             elif S == 'BETA':
                 IPR_BETA = eval("IPR_{}".format(s))
-                Beta_dats = []
-                MOs_Beta = []
+                Beta_dats, MOs_Beta, is_Beta_occ, is_Beta_unocc = [], [], [], []
                 
             eigenvalue = eval("eigenvalue0_{}".format(S))
             # file name basis of pdos files
@@ -233,30 +249,50 @@ class IPR_Spin_Polarised:
                     # executing get-smearing-pdos.py and renaming 'smeared.dat'
                     subprocess.run(["python3", "get-smearing-pdos.py",str("{}".format(pdos_file))])
                     subprocess.run(["mv","smeared.dat",str("{}".format(name))])
-                    # unpacking the pdos files
                     
-                    if MOs_written is False:
+                    # unpacking the pdos files
+                    if var_num == 7:
+                        Mo, Eigenvalue, Occupation, S_occ, P_occ = np.loadtxt(pdos_file, unpack=True)
                         
-                        if var_num == 7:
-                            Mo, Eigenvalue, Occupation, S_occ, P_occ = np.loadtxt(pdos_file, unpack=True)
-                            
-                        elif var_num == 8:
-                            Mo, Eigenvalue, Occupation, S_occ, P_occ, D_occ = np.loadtxt(pdos_file, unpack=True)
-                            
-                        elif var_num == 9:
-                            Mo, Eigenvalue, Occupation, S_occ, P_occ, D_occ, F_occ = np.loadtxt(pdos_file, unpack=True)
-                            
+                    elif var_num == 8:
+                        Mo, Eigenvalue, Occupation, S_occ, P_occ, D_occ = np.loadtxt(pdos_file, unpack=True)
+                        
+                    elif var_num == 9:
+                        Mo, Eigenvalue, Occupation, S_occ, P_occ, D_occ, F_occ = np.loadtxt(pdos_file, unpack=True)
+
+                    # finding the MOs of the homo and lumo states
+                    for occ, val, band, indx in zip(['occ','unocc'], [1.0,0.0], ['homo','lumo'], [-1,0]):
+                        for j in range(len(Occupation)): 
+                            if round(Occupation[j],0) == val: 
+                                exec(f'is_{s}_{occ}.append(j)')
+                        exec(f'{band}_{S}_MO = int(Mo[is_{s}_{occ}[indx]])')
+
+                    # calculate average IPR values of the valence and conduction bands
+                    VB_ave, CB_ave = self.bandIPR_ave(eval("homo_{}_MO".format(S)), eval("lumo_{}_MO".format(S)), eval("IPR_{}".format(S)))
+
+                    if MOs_written is False:
                         for n, m in zip(eval("IPR_{}".format(S)),eigenvalue):
                             
                             if abs(float(n)) >= 0.01:
                                 exec(f'MOs_{s}.append(Mo[np.where(Eigenvalue == m)[0][0]])')
                                 
                         MOs_written = True
+
+                    defectstatefound = False
+                    for i,j in zip(range(len(eval("eigenvalue_{}".format(S)))),range(len(eval("IPR_{}".format(S))))):
+                        # findng the eigenvalue and ipr values of the defect state
+                        if eval("eigenvalue_{}[i]".format(S)) > 0 and abs(eval("IPR_{}[j]".format(S))) > abs(VB_ave) and abs(eval("IPR_{}[j]".format(S))) > abs(CB_ave) and defectstatefound is False:
+                            def_state_eigen, def_state_IPR = eval("eigenvalue_{}[i]".format(S)), round(eval("IPR_{}[j]".format(S)),6)
+                            VB_Edge  = Eigenvalue[np.where(Mo == eval("homo_{}_MO".format(S)))[0][0]]
+                            # calculation of defect state fermi level of homo 
+                            DS_Ef = round(((efermi - VB_Edge)*27.211) + def_state_eigen,6)
+                            
+                            defectstatefound = None
                         
         Alpha_dats = np.sort(Alpha_dats) 
         Beta_dats = np.sort(Beta_dats) 
                     
-        return eigenvalue_ALPHA, eigenvalue_BETA, IPR_ALPHA, IPR_BETA, Alpha_dats, Beta_dats, MOs_Alpha, MOs_Beta
+        return eigenvalue_ALPHA, eigenvalue_BETA, IPR_ALPHA, IPR_BETA, Alpha_dats, Beta_dats, MOs_Alpha, MOs_Beta, VB_ave, CB_ave, DS_Ef, def_state_IPR
     
     ############################# Project MOs onto atoms
     def MO_projection_atoms(self, MO_number,number_of_atoms,spin):
@@ -320,10 +356,10 @@ class IPR_Spin_Polarised:
     #Returns a function that maps each index in 0, 1, ..., n-1 to a distinct 
     # RGB color; the keyword argument name must be a standard mpl colormap name.
         return plt.cm.get_cmap(name, n)
-
+    
     ########################### function to create figure showing pdos and ipr 
-    def plotting_pdos_IPR(self, eigenvalue_ALPHA, eigenvalue_BETA, IPR_ALPHA, IPR_BETA, Alpha_dats, Beta_dats):
-        fig = plt.figure(figsize=(8,7))
+    def plotting_pdos_IPR(self, eigenvalue_ALPHA, eigenvalue_BETA, IPR_ALPHA, IPR_BETA, Alpha_dats, Beta_dats, VB_ave, CB_ave, DS_Ef, def_state_IPR):
+        fig = plt.figure(figsize=(13,8))
         ax = plt.subplot()
         ax.set_xlabel('Energy - Fermi level energy (eV)',fontsize =22)
         ## first y-axis for pdos data
@@ -358,7 +394,8 @@ class IPR_Spin_Polarised:
             energy, density = np.loadtxt(dat, unpack=True)
             density = - density 
             ax.plot(energy,density,ls='-',c=cmap(i))
-            
+
+        
         ## plotting the ipr energies and ratios
         for S in 'ALPHA','BETA':
             
@@ -366,7 +403,12 @@ class IPR_Spin_Polarised:
                 eigen_energy = eval("eigenvalue_{}[i]".format(S))
                 IPR =  eval("IPR_{}[j]".format(S))
                 ax2.plot([eigen_energy,eigen_energy],[0,IPR],ls ='-',color='k',lw=1.75)
-                
+
+        eqn1, eqn2, eqn3, eqn4 = str("$\overline{IPR(\psi_{VB})}$"), str("$\overline{IPR(\psi_{CB})}$"), str("$\delta\epsilon_{f}[\psi_{DS}]$"), str("$\overline{IPR(\psi_{DS})}$")
+        string = str("PDOS & IPR: {} = {}, {} = {}, \n {} = {}, {} = {} ".format(eqn1,VB_ave,eqn2,CB_ave,eqn3,DS_Ef,eqn4,def_state_IPR))
+        
+        ax.set_title(string,fontsize =22)
+        
         hands, labs = ax.get_legend_handles_labels()
         ax.legend(hands, labs, bbox_to_anchor=(0.25, 0.7), ncol=2, fontsize=22) 
         
@@ -380,14 +422,14 @@ class IPR_Spin_Polarised:
 
 input_file=sys.argv[1]
 ipr = IPR_Spin_Polarised(input_file)
-## producing the IPR output dat files for both spins
-# ipr.IPR_Spectrum('Beta')
-# ipr.IPR_Spectrum('Alpha')
+# producing the IPR output dat files for both spins
+ipr.IPR_Spectrum('Beta')
+ipr.IPR_Spectrum('Alpha')
 
-# ## pdos file processing
-# cwd = os.getcwd()
-# eigenvalue_ALPHA, eigenvalue_BETA, IPR_ALPHA, IPR_BETA, Alpha_dats, Beta_dats, MOs_Alpha, MOs_Beta=ipr.pdos_ipr_processing(cwd)
-# for s in 'Alpha','Beta':
-#     ipr.MO_projection_scan(eval("MOs_{}".format(s)),s)
-# ipr.plotting_pdos_IPR(eigenvalue_ALPHA, eigenvalue_BETA, IPR_ALPHA, IPR_BETA, Alpha_dats, Beta_dats)            
+## pdos file processing
+cwd = os.getcwd()
+eigenvalue_ALPHA, eigenvalue_BETA, IPR_ALPHA, IPR_BETA, Alpha_dats, Beta_dats, MOs_Alpha, MOs_Beta, VB_ave, CB_ave, DS_Ef, def_state_IPR =ipr.pdos_ipr_processing(cwd)
+for s in 'Alpha','Beta':
+    ipr.MO_projection_scan(eval("MOs_{}".format(s)),s)
+ipr.plotting_pdos_IPR(eigenvalue_ALPHA, eigenvalue_BETA, IPR_ALPHA, IPR_BETA, Alpha_dats, Beta_dats, VB_ave, CB_ave, DS_Ef, def_state_IPR)           
             
