@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+
+# Author: Niamh Smith, e-mail: niamh.smith.17 [at] ucl.ac.uk
+# Date:   13-03-2024; 18-03-2024 [updated]
+
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -11,6 +16,7 @@ class adiabatic_potentials:
         Class definitions:
             energy(str): string within CP2K log file in which final total energy is found. 
             at_structure(str): string within CP2K log file which signals that printed atom coordinates used in calculation follow.  
+            Bandgap(float): global variables E_VBM and E_CBM (defined outside of class) must be the eigenvalue energies (in eV) of the bulk defect free material's highest occupied and lowest unoccupied molecular orbits, respectively. 
     
         Inputs:
             Ename(str): Name of band edge energy defect is closest to. 
@@ -23,6 +29,7 @@ class adiabatic_potentials:
             x_q1(list of floats): x-coordinates of relaxed charge state q1 structure
             y_q1(list of floats): y-coordinates of relaxed charge state q1 structure
             z_q1(list of floats): z-coordinates of relaxed charge state q1 structure
+            CTL(float): charge transition level calculated between charge states q1 and q2 wrt the VBM
             q2_rsk_log(str): file path of log file for ENERGY calc of q1 geometry in charge state q2.
             q1_rsk_log(str): file path of log file for ENERGY calc of q2 geometry in q1 charge state.
             
@@ -30,10 +37,12 @@ class adiabatic_potentials:
             name(str): assigned as name of the defect within function self.renew file path. 
             Ename(str): Ename input saved as class attribute
             Ebm(float): Ebm input saves as class attribute
+            CTL(float): CTL input saved as class attribute
             E_q2min_pos(None -> int), E_q1min_pos(None -> int): Q value minimum of charge state parabola, assigned by function self.comparing
             M(None -> float): associated modal mass assigned by function self.find_each_atom_vector.
             fitting_cst1(None -> list of floats), fitting_cst2(None -> list of floats): curve fit [scipy.optimize] coefficient to fit self.objective eqn to each charge state results. 
             E_q2_xyz(array of floats), E_q1_xyz(array of floats): 3 x n ndarray, where n is number of atoms, of x, y, z relaxed coord inputs for charge state. 
+            ε12(None -> float), ε21(None -> float): theory SRH levels comparible with experimental extracted trap/interface levels, assigned by self.CTL_2_exp_comparison()
             mass_1(list of float), mass_2(list of float): atomic masses of all atoms in system. 
             elements(list of str): atomic species names for all atom in system. 
             E_q2(float): E_q2 input plus Ebm input (energy adjustment wrt closest band egde) saved as class attribute
@@ -55,7 +64,7 @@ class adiabatic_potentials:
         
         # Set up class attributes from input variables 
         self.name = "" 
-        self.Ename, self.Ebm,  self.E_q2min_pos, self.E_q1min_pos, self.M, self.fitting_cst1, self.fitting_cst2 = Ename, Ebm, None, None, None, None, None
+        self.Ename, self.Ebm, self.CTL, self.E_q2min_pos, self.E_q1min_pos, self.M, self.fitting_cst1, self.fitting_cst2, self.ε12, self.ε21 = Ename, Ebm, CTL, None, None, None, None, None, None, None
         self.E_q2_xyz, self.E_q1_xyz = np.array([x_q2,y_q2,z_q2]), np.array([x_q1,y_q1,z_q1])
         self.Es_q2, self.Qs_q2, self.Es_q1, self.Qs_q1  = [],[], [], []
         self.E_q2, self.E_q1 = E_q2+Ebm, E_q1
@@ -300,10 +309,10 @@ class adiabatic_potentials:
         
         fig, ax = plt.subplots(figsize =(12,8))
         
-        R_12, R_21, E_21, E_12 = self.energies()
+        εR_12, εR_21, E_21, E_12 = self.energies()
         
         # big for loop to save lines related to line and point plotting for each charge state. 
-        for q, q_, E, Eq, c1, c2, c3, c4, c5, c6, lab1, lab2, lab3, txt1, num, num2, n1, n2, n3, n4, n5, n6 in zip(['q2','q1'],['q1','q2'],['E2','E1'],[self.E_q2,self.E_q1], ['brown','seagreen'],['tomato','mediumaquamarine'],['red','cyan'],['crimson','blue'],['deeppink','violet'], ['orangered','teal'], [str('D0 + {}'.format(self.Ename)), 'Dn1'],["$E_{D0}$"+str(' + {}'.format(self.Ename)),'$E_{Dn1}$'],["$E_{D0*}$"+str(' + {}'.format(self.Ename)), '$E_{Dn1*}$'],["$\epsilon_{R_{12}}$ = %.3f eV"%R_12, "$\epsilon_{R_{21}}$ = %.3f eV"%R_21], [1,2], [2,1], [0.6,-2], [0.58,-0.6], [self.E_q2min_pos,-2.1], [3.05,0], [-0.8, -0.2], [0.01,0.02]):
+        for q, q_, E, Eq, c1, c2, c3, c4, c5, c6, lab1, lab2, lab3, txt1, num, num2, n1, n2, n3, n4, n5, n6 in zip(['q2','q1'],['q1','q2'],['E2','E1'],[self.E_q2,self.E_q1], ['brown','seagreen'],['tomato','mediumaquamarine'],['red','cyan'],['crimson','blue'],['deeppink','violet'], ['orangered','teal'], [str('D0 + {}'.format(self.Ename)), 'Dn1'],["$E_{D0}$"+str(' + {}'.format(self.Ename)),'$E_{Dn1}$'],["$E_{D0*}$"+str(' + {}'.format(self.Ename)), '$E_{Dn1*}$'],["$\epsilon_{R_{12}}$ = %.3f eV"%εR_12, "$\epsilon_{R_{21}}$ = %.3f eV"%εR_21], [1,2], [2,1], [0.6,-2], [0.58,-0.6], [self.E_q2min_pos,-2.1], [3.05,0], [-0.8, -0.2], [0.01,0.02]):
             
             exec(f'ax.scatter(Qs_{q}, Es_{q}, marker="o", color=c1, label=lab1)') # scatter of energies and reaction coordinate points
             exec(f'ax.scatter(self.E_{q}min_pos, self.E_{q}, marker="*", s=100, color=c2,label=lab2)') # make minimum of charge state parabola stand out
@@ -343,12 +352,12 @@ class adiabatic_potentials:
                 ax.plot(np.arange(-2.4, 3.4, 0.1), self.objective(np.arange(-2.4, 3.4, 0.1), fitting_csts[0], fitting_csts[1],fitting_csts[2]),'-.', color=c4,label='fit')
                 exec(f'self.fitting_csts{num2} = fitting_csts')
         
-        Qx, TEx, R_cap, R_emis, col1, col2, lwrE, opp, limit = self.relax_E()
+        Qx, TEx, R_cap, R_emis, lwrE, opp, limit = self.relax_E()
         
-        ax.plot([Qx,Qx],[TEx,TEx+R_cap],ls='--',color=col1) # vertical line from crossing point to lower energy minimum 
-        ax.text((Qx+opp[0]), ((TEx+R_cap)+0.01), "$R_{cap}$ = %.3f eV"%(R_cap),color=col1,fontsize = 14) # stating relaxation energy for capture 
-        ax.plot([Qx+0.02,Qx+0.02],[TEx,TEx+R_emis],ls='--',color=col2) # vertical line from crossing point to higher energy minimum
-        ax.text((Qx+opp[1]), (TEx-0.02), "$R_{emis}$ = %.3f eV"%(R_emis),color=col2,fontsize = 14) # stating relaxation energy for emission. 
+        ax.plot([Qx,Qx],[TEx,TEx+R_cap],ls='--',color="orange") # vertical line from crossing point to lower energy minimum 
+        ax.text((Qx+opp[0]), ((TEx+R_cap)+0.01), "$R_{cap}$ = %.3f eV"%(R_cap),color="orange",fontsize = 14) # stating relaxation energy for capture 
+        ax.plot([Qx+0.02,Qx+0.02],[TEx,TEx+R_emis],ls='--',color="green") # vertical line from crossing point to higher energy minimum
+        ax.text((Qx+opp[1]), ((TEx+R_emis)+0.02), "$R_{emis}$ = %.3f eV"%(R_emis),color="green",fontsize = 14) # stating relaxation energy for emission. 
         
         ax.scatter(Qx,TEx,marker="X",s=200,color="yellow", edgecolors="k")
         
@@ -362,6 +371,8 @@ class adiabatic_potentials:
         plt.xlabel('Q (Å)', fontsize =16)  
         plt.savefig("./Relaxation_energies/{}.png".format(self.name))
         plt.show()
+
+        self.CTL_2_exp_comparison(R_cap,R_emis)
         
     def energies(self):
         """ E21 = E2 - E1 
@@ -380,11 +391,11 @@ class adiabatic_potentials:
         """
         E_21 = self.E_q2 - self.E_q1
         E_12 = self.E_q1 - self.E_q2
-        epsilon_R21 = self.E_q1_rsk - self.E_q1
         
-        epsilon_R12 = self.E_q2_rsk - self.E_q1 - (self.E_q2 - self.E_q1)
+        ε_R21 = self.E_q1_rsk - self.E_q1
+        ε_R12 = self.E_q2_rsk - self.E_q1 - (self.E_q2 - self.E_q1)
         
-        return epsilon_R12, epsilon_R21, E_21, E_12
+        return ε_R12, ε_R21, E_21, E_12
     
     def objective(self, Q, w, qi, Ei):
         """ Eqn 77 
@@ -411,9 +422,9 @@ class adiabatic_potentials:
             popt, _ = curve_fit(self.objective,Q,E,bounds=([-np.inf, 0, E_Di-0.00000001],[np.inf, 1, E_Di+0.00000001]))# popt[0]=ω, popt[1]=qi, popt[2]=Ei
         elif boolean == True:
             popt, _ = curve_fit(self.objective,Q,E,bounds=([((4/5)*self.fitting_csts1[0]), 0.88, E_Di-0.00000001],[self.fitting_csts1[0], 1.1, E_Di+0.00000001]))
-        print(str('TE = 0.5Mω^2(Q-qi)^2 + Ei = 0.5 * %.5f * %.5f^2 * (Q - %.1f)^2  + %.5f' % (self.M,popt[0],popt[1],popt[2])))
         ω = popt[0] * np.sqrt(((1.6022 * 10 ** -19) /((1.66054 * (10 ** -27)) * (10 ** -10)**2))) # ω = sqrt(2 ET/M Q_rel^2)
-        print("fitted ω = ", '%.4E' % Decimal(ω))
+        print(str('TE = 0.5Mω^2(Q-qi)^2 + Ei -> M = %.5f amu; ω = %.5f eV(1/2)•amu-(1/2)•Å-1  = %.4E s-1; qi = %.1f Å; Ei = %.5f eV' % (self.M,popt[0],Decimal(ω),popt[1],popt[2])))
+        
         return popt
      
     def relax_E(self): 
@@ -435,12 +446,11 @@ class adiabatic_potentials:
                 hgr_rsk(float): higher excited charge state energy
         """
         
-        # want to color line from crossing to minimum of q1 curve as green and color line from crossing to minimum of q2 orange, 
         if self.E_q2 < self.E_q1:
-            lwrE, hgrE, col1, col2, opp, hgr_rsk = self.E_q2, self.E_q1, "orange", "green", [-2,-2], self.E_q1_rsk
+            lwrE, opp, hgr_rsk = self.E_q2, [-2,-2], self.E_q1_rsk
             
         else:
-            lwrE, hgrE, col1, col2, opp, hgr_rsk = self.E_q1, self.E_q2, "green", "orange", [+ 0.02, + 0.06], self.E_q2_rsk
+            lwrE, opp, hgr_rsk = self.E_q1, [+ 0.02, + 0.06], self.E_q2_rsk
             
         #defining variables corresponding to eqn (2) in docstring
         a, b, c, d, e, f = 0.5*self.M*self.fitting_csts2[0]*self.fitting_csts2[0], 0.5*self.M*self.fitting_csts1[0]*self.fitting_csts1[0], self.fitting_csts2[2], self.fitting_csts1[2], self.fitting_csts2[1], self.fitting_csts1[1]
@@ -451,12 +461,39 @@ class adiabatic_potentials:
 
         y = (0.5 * self.M * (self.fitting_csts1[0]*self.fitting_csts1[0])*((Q - self.fitting_csts1[1])*(Q - self.fitting_csts1[1]))) + self.fitting_csts1[2]
         
-        R_cap = lwrE - y
-        print(R_cap)
-        R_emis = hgrE - y
-        print(R_emis)
+        R_cap = self.E_q2 - y
+        R_emis = self.E_q1 - y
         
-        return Q, y, R_cap, R_emis, col1, col2, lwrE, opp, hgr_rsk
+        return Q, y, R_cap, R_emis, lwrE, opp, hgr_rsk
+        
+    def CTL_2_exp_comparison(self, R_cap, R_emis):
+        """ Converting defect CT level into a SRH (ε12 & ε21) levels comparible with experimental extracted trap/interface (e- capture & e- emission) levels collected from TDRC and Id-DLTS.
+            Both experimental techniques measure electron traps via either emission (TDRC) or capture (Id-DLTS), so CTL value must be converted from being wrt VBM [self.CTL] to being wrt CBM [CTL_].
+            
+            ε12 = (εR + E21)^2/4εR [Eqn 89]
+                = (R_cap + CTL_)^2/4R_cap 
+            ε21 = (εR - E21)^2/4εR [Eqn 90]
+                = (R_emis - CTL_)^2/4R_emis
+            
+            inputs:
+                R_cap(float): relaxation energy of capture
+                R_emis(float): relaxation energy of emission
+        """
+        if self.CTL > adiabatic_potentials.bandgap/2: # defect lvl close to CB
+            CTL_ = adiabatic_potentials.bandgap - self.CTL # CT lvl wrt to CBM is bandgap - lvl wrt to EBM
+
+            self.ε12 = ((R_cap + CTL_)**2) / (4 * R_cap)
+            self.ε21 = ((R_emis - CTL_)**2) / (4 * R_emis)
+        elif self.CTL < adiabatic_potentials.bandgap /2: # defect level close to VB
+            # must calculate ε12 and ε21 wrt to VBM first.
+            ε12 = ((R_cap + self.CTL)**2) / (4 * R_cap)
+            ε21 = ((R_emis - self.CTL)**2) / (4 * R_emis)
+            # then convert to ε12 and ε21 wrt to CBM via bandgap -  ε12; bandgap - ε21 
+            self.ε12 = adiabatic_potentials.bandgap - ε12 
+            self.ε21 = adiabatic_potentials.bandgap - ε21 
+        
+    def returnCTL2exp(self):
+        return self.ε12, self.ε21
 
 def indirectory(directory, flname):
     """
@@ -496,7 +533,7 @@ def roundlistelements(list,pos,num):
     if strg[strg.index('.')+num+1:] == str(5): # for when the digit the rounding is based upon is a 5 (as python inbuilt round function has werid behaviour when rounding based on the digit 5), complete this test. 
         L_pos = str(list[pos]) # str version of list element before being rounded 
         num1 = num + L_pos.index('.') + 1
-        
+        posn = round(list[pos],num)
         if float(L_pos[:num1]) == posn: # check if python round function has rounded list element down to the number of decimal places. 
             list[pos] = list[pos] + (1 * (10 ** (-num-1))) # changing the digit of the decimal place before the cut of number of decimals places from 5 to 6. 
             list[pos] = round(list[pos],num) 
