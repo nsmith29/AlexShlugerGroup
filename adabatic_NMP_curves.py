@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # Author: Niamh Smith, e-mail: niamh.smith.17 [at] ucl.ac.uk
-# Date:   13-03-2024; 18-03-2024 [updated]
+# Date:   13-03-2024; 22-03-2024 [updated]
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -36,11 +36,11 @@ class adiabatic_potentials:
         Attributes [self. variables]:
             name(str): assigned as name of the defect within function self.renew file path. 
             Ename(str): Ename input saved as class attribute
-            Ebm(float): Ebm input saves as class attribute
+            Ebm(float): Ebm input saved as class attribute
             CTL(float): CTL input saved as class attribute
             E_q2min_pos(None -> int), E_q1min_pos(None -> int): Q value minimum of charge state parabola, assigned by function self.comparing
             M(None -> float): associated modal mass assigned by function self.find_each_atom_vector.
-            fitting_cst1(None -> list of floats), fitting_cst2(None -> list of floats): curve fit [scipy.optimize] coefficient to fit self.objective eqn to each charge state results. 
+            fitting_cst1(None -> list of floats), fitting_cst2(None -> list of floats): curve fit [scipy.optimize] coefficient to fit self.objective() eqn to each charge state results. 
             E_q2_xyz(array of floats), E_q1_xyz(array of floats): 3 x n ndarray, where n is number of atoms, of x, y, z relaxed coord inputs for charge state. 
             ε12(None -> float), ε21(None -> float): theory SRH levels comparible with experimental extracted trap/interface levels, assigned by self.CTL_2_exp_comparison()
             mass_1(list of float), mass_2(list of float): atomic masses of all atoms in system. 
@@ -55,8 +55,9 @@ class adiabatic_potentials:
     
     energy = 'ENERGY| Total FORCE_EVAL'
     at_structure = 'MODULE QUICKSTEP:  ATOMIC COORDINATES IN angstrom'
+    bandgap = E_CBM - E_VBM 
     
-    def __init__(self, Ename, Ebm, E_q2, x_q2, y_q2, z_q2, E_q1, x_q1, y_q1, z_q1, q2_rsk_log, q1_rsk_log):
+    def __init__(self, Ename, Ebm, E_q2, x_q2, y_q2, z_q2, E_q1, x_q1, y_q1, z_q1, CTL, q2_rsk_log, q1_rsk_log):
         # check that both q1 & q2 have coordinates for the same number of atoms.
         
         if len(x_q2) != len(x_q1): 
@@ -125,7 +126,7 @@ class adiabatic_potentials:
         log_rsk.close()
         return E, ELEMENT, MASS
     
-     def comparing(self, array, compare, strg1, strg2):
+    def comparing(self, array, compare, strg1, strg2):
         
         if type(compare) is np.ndarray:
             """
@@ -354,10 +355,10 @@ class adiabatic_potentials:
         
         Qx, TEx, R_cap, R_emis, lwrE, opp, limit = self.relax_E()
         
-        ax.plot([Qx,Qx],[TEx,TEx+R_cap],ls='--',color="orange") # vertical line from crossing point to lower energy minimum 
-        ax.text((Qx+opp[0]), ((TEx+R_cap)+0.01), "$R_{cap}$ = %.3f eV"%(R_cap),color="orange",fontsize = 14) # stating relaxation energy for capture 
-        ax.plot([Qx+0.02,Qx+0.02],[TEx,TEx+R_emis],ls='--',color="green") # vertical line from crossing point to higher energy minimum
-        ax.text((Qx+opp[1]), ((TEx+R_emis)+0.02), "$R_{emis}$ = %.3f eV"%(R_emis),color="green",fontsize = 14) # stating relaxation energy for emission. 
+        ax.plot([Qx,Qx],[TEx,TEx-R_cap],ls='--',color="orange") # vertical line from crossing point to lower energy minimum 
+        ax.text((Qx+opp[0]), ((TEx-R_cap)+0.01), "$R_{cap}$ = %.3f eV"%(R_cap),color="orange",fontsize = 14) # stating relaxation energy for capture 
+        ax.plot([Qx+0.02,Qx+0.02],[TEx,TEx-R_emis],ls='--',color="green") # vertical line from crossing point to higher energy minimum
+        ax.text((Qx+opp[1]), ((TEx-R_emis)+0.02), "$R_{emis}$ = %.3f eV"%(R_emis),color="green",fontsize = 14) # stating relaxation energy for emission. 
         
         ax.scatter(Qx,TEx,marker="X",s=200,color="yellow", edgecolors="k")
         
@@ -380,7 +381,7 @@ class adiabatic_potentials:
             
             Franck–Condon principle energies - Fig. 50  
                 ε˚12 = E*2 - E1
-                εR12 =  ε˚12 - E21 [Eqn 78]
+                εR12 = ε˚12 - E21 [Eqn 78]
                      = E*2 - E1 - (E2 - E1) 
                      = E*2 - E2
                      
@@ -439,8 +440,6 @@ class adiabatic_potentials:
                 y(float): energy of crossing point 
                 R_cap(float): relaxation energy of capture
                 R_emis(float): relaxation energy of emission
-                col1(str): color of R_cap notation on graph based on where R_cap is from crossing to minimum of q1 curve or q2 curve 
-                col2(str): color of R_emis notation on graph based on where R_emis is from crossing to minimum of q1 curve or q2 curve
                 lwrE(float): lower charge state minimum energy
                 opp(list of float/int): constant to add to x positioning of text for R_cap and R_emis on graph. 
                 hgr_rsk(float): higher excited charge state energy
@@ -461,8 +460,8 @@ class adiabatic_potentials:
 
         y = (0.5 * self.M * (self.fitting_csts1[0]*self.fitting_csts1[0])*((Q - self.fitting_csts1[1])*(Q - self.fitting_csts1[1]))) + self.fitting_csts1[2]
         
-        R_cap = self.E_q2 - y
-        R_emis = self.E_q1 - y
+        R_cap = - (self.E_q2 - y)                                                                                      
+        R_emis = - (self.E_q1 - y)
         
         return Q, y, R_cap, R_emis, lwrE, opp, hgr_rsk
         
@@ -479,18 +478,24 @@ class adiabatic_potentials:
                 R_cap(float): relaxation energy of capture
                 R_emis(float): relaxation energy of emission
         """
-        if self.CTL > adiabatic_potentials.bandgap/2: # defect lvl close to CB
-            CTL_ = adiabatic_potentials.bandgap - self.CTL # CT lvl wrt to CBM is bandgap - lvl wrt to EBM
+        if self.CTL > adiabatic_potentials.bandgap/2: # defect lvl close to CB [Ec-/+lvl]
+            print("CTL Ev",self.CTL)
+            CTL_ = self.CTL - adiabatic_potentials.bandgap  # CT lvl wrt to CBM [Ec-/+lvl] is lvl wrt to EBM [Ev+lvl] - bandgap
+            print("CTL_ Ec",CTL_)
 
             self.ε12 = ((R_cap + CTL_)**2) / (4 * R_cap)
             self.ε21 = ((R_emis - CTL_)**2) / (4 * R_emis)
-        elif self.CTL < adiabatic_potentials.bandgap /2: # defect level close to VB
+            if CTL_ < 0: # if level is Ec-lvl rather than Ec+lvl, make sure ε12 and ε21 are negative.
+                self.ε12 = - self.ε12 
+                self.ε21 = - self.ε21 
+            
+        elif self.CTL < adiabatic_potentials.bandgap /2: # defect level close to VB [Ev+lvl]
             # must calculate ε12 and ε21 wrt to VBM first.
             ε12 = ((R_cap + self.CTL)**2) / (4 * R_cap)
             ε21 = ((R_emis - self.CTL)**2) / (4 * R_emis)
-            # then convert to ε12 and ε21 wrt to CBM via bandgap -  ε12; bandgap - ε21 
-            self.ε12 = adiabatic_potentials.bandgap - ε12 
-            self.ε21 = adiabatic_potentials.bandgap - ε21 
+            # then convert to ε12/ε21 wrt to CBM [Ec-ε12]/[Ec-ε21] via ε12 - bandgap/ε21 -bandgap 
+            self.ε12 = ε12 - adiabatic_potentials.bandgap 
+            self.ε21 = ε21 - adiabatic_potentials.bandgap 
         
     def returnCTL2exp(self):
         return self.ε12, self.ε21
